@@ -33,6 +33,7 @@ export default function Encyclopedia({ questions, stats, onBack }: EncyclopediaP
   const [unlockedFilter, setUnlockedFilter] = useState<'all' | 'unlocked' | 'locked'>('all');
   const [selectedLawId, setSelectedLawId] = useState<string | null>(null);
   const [devUnlockAll, setDevUnlockAll] = useState(false); // 【検証用】図鑑全開放フラグ
+  const [sortBy, setSortBy] = useState<'id-asc' | 'id-desc' | 'unlocked' | 'locked'>('id-asc');
 
   // フィルタリング処理
   const filteredQuestions = questions.filter(q => {
@@ -50,6 +51,35 @@ export default function Encyclopedia({ questions, stats, onBack }: EncyclopediaP
     if (unlockedFilter === 'locked') matchesUnlock = !isUnlocked;
 
     return matchesSearch && matchesGenre && matchesDifficulty && matchesUnlock;
+  });
+
+  // ソート処理
+  const sortedQuestions = [...filteredQuestions].sort((a, b) => {
+    const numA = parseInt(a.id.replace('q', ''), 10) || 0;
+    const numB = parseInt(b.id.replace('q', ''), 10) || 0;
+    
+    if (sortBy === 'id-asc') {
+      return numA - numB;
+    }
+    if (sortBy === 'id-desc') {
+      return numB - numA;
+    }
+    
+    const isUnlockedA = stats.unlockedIds.includes(a.id) || devUnlockAll;
+    const isUnlockedB = stats.unlockedIds.includes(b.id) || devUnlockAll;
+    
+    if (sortBy === 'unlocked') {
+      if (isUnlockedA && !isUnlockedB) return -1;
+      if (!isUnlockedA && isUnlockedB) return 1;
+      return numA - numB; // 同じならID昇順
+    }
+    if (sortBy === 'locked') {
+      if (!isUnlockedA && isUnlockedB) return -1;
+      if (isUnlockedA && !isUnlockedB) return 1;
+      return numA - numB; // 同じならID昇順
+    }
+    
+    return 0;
   });
 
   // ジャンル日本語表記
@@ -217,6 +247,22 @@ export default function Encyclopedia({ questions, stats, onBack }: EncyclopediaP
             </select>
           </div>
 
+          {/* 並び替え */}
+          <div className="flex items-center gap-2" id="sort-filter-box">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">並び替え:</span>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as any)}
+              className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 text-xs font-bold rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 cursor-pointer"
+              id="sort-select"
+            >
+              <option value="id-asc">ID順 (昇順)</option>
+              <option value="id-desc">ID順 (降順)</option>
+              <option value="unlocked">解放済優先</option>
+              <option value="locked">未解放優先</option>
+            </select>
+          </div>
+
           {/* 【検証用】デバッグトグル */}
           <div className="flex items-center gap-2 md:ml-auto" id="dev-unlock-box">
             <span className="text-xs font-bold text-indigo-500 uppercase tracking-wider flex items-center gap-1">
@@ -239,9 +285,11 @@ export default function Encyclopedia({ questions, stats, onBack }: EncyclopediaP
 
       {/* 法律カード一覧 */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-12" id="encyclopedia-grid">
-        {filteredQuestions.map((q) => {
+        {sortedQuestions.map((q) => {
           const isUnlocked = stats.unlockedIds.includes(q.id) || devUnlockAll;
           const isSelected = selectedLawId === q.id;
+          const idNum = parseInt(q.id.replace('q', ''), 10) || 0;
+          const displayId = `No.${String(idNum).padStart(2, '0')}`;
 
           return (
             <div 
@@ -262,6 +310,9 @@ export default function Encyclopedia({ questions, stats, onBack }: EncyclopediaP
                 <div className="flex-1" id={`card-title-box-${q.id}`}>
                   {/* バッジ一覧 */}
                   <div className="flex flex-wrap items-center gap-1.5 mb-2" id={`badges-row-${q.id}`}>
+                    <span className="px-2 py-0.5 text-[10px] font-mono font-bold rounded border bg-indigo-50 text-indigo-700 border-indigo-200">
+                      {displayId}
+                    </span>
                     <span className={`px-2 py-0.5 text-[10px] font-bold rounded border ${getGenreColor(q.genre)}`}>
                       {getGenreLabel(q.genre)}
                     </span>
@@ -365,7 +416,7 @@ export default function Encyclopedia({ questions, stats, onBack }: EncyclopediaP
           );
         })}
 
-        {filteredQuestions.length === 0 && (
+        {sortedQuestions.length === 0 && (
           <div className="col-span-1 md:col-span-2 text-center py-12 bg-white rounded-2xl border border-slate-100" id="no-filtered-laws-box">
             <Info className="w-10 h-10 text-slate-300 mx-auto mb-3" />
             <p className="text-sm font-bold text-slate-500">条件に一致する法律がありません</p>
